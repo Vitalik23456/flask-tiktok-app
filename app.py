@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template, redirect, url_for, jsonify
 import sqlite3
 import requests
-
+import os
 app = Flask(__name__)
 DATABASE = 'users.db'
 
@@ -78,7 +78,8 @@ conn.close()
 print(columns)
 [(0, 'id', 'INTEGER', 0, None, 1), (1, 'user_id', 'TEXT', 0, None, 0), ...]
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
     
 
