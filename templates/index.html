@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>TikTok Swipe Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: black;
+      height: 100%;
+      overflow: hidden;
+    }
+    .video-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: black;
+    }
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+      text-align: center;
+      display: none;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .hotbar {
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      text-align: center;
+      z-index: 10;
+    }
+    .hotbar a {
+      color: #ff0050;
+      background: rgba(34, 34, 34, 0.8);
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 20px;
+      border: 2px solid #ff0050;
+      border-radius: 10px;
+    }
+    .hotbar a:hover {
+      background-color: #ff0050;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+
+<div class="video-container">
+  <video id="videoPlayer" autoplay playsinline controls></video>
+  <div id="message">Відео скоро з'являться</div>
+</div>
+
+<div class="hotbar">
+  <a href="{{ url_for('add_video', user_id=user_id) }}">Додати відео</a>
+</div>
+
+<script>
+
+// Ініціалізуємо Telegram WebApp
+if (window.Telegram && Telegram.WebApp) {
+  // Повідомляємо, що WebApp готовий
+  Telegram.WebApp.ready();
+
+  // Розгортаємо на весь екран
+  Telegram.WebApp.expand();
+}
+const userId = "{{ user_id or '' }}";
+let videos = [];
+let currentIndex = 0;
+
+// Основний відеоплеєр
+const videoMain = document.getElementById("videoPlayer");
+
+// Прихований плеєр для підвантаження наступного відео
+const videoPreload = document.createElement("video");
+videoPreload.preload = "auto";
+videoPreload.muted = true;
+videoPreload.style.display = "none";
+document.body.appendChild(videoPreload);
+
+const message = document.getElementById("message");
+
+let wheelTimeout = null;
+
+// ———————— КЕРУВАННЯ ЗВУКОМ ————————
+// Після першої взаємодії (клік чи свайп) вмикаємо звук і зберігаємо дозвіл
+function enableSoundOnce() {
+  localStorage.setItem('soundAllowed', 'true');
+  videoMain.muted = false;
+  videoMain.volume = 1.0;
+  // видаляємо слухачі, щоб більше не реагувати
+  window.removeEventListener('click', enableSoundOnce);
+  window.removeEventListener('touchstart', enableSoundOnce);
+}
+
+// При завантаженні сторінки перевіряємо дозвіл
+if (localStorage.getItem('soundAllowed') === 'true') {
+  videoMain.muted = false;
+  videoMain.volume = 1.0;
+} else {
+  videoMain.muted = true;
+  window.addEventListener('click', enableSoundOnce);
+  window.addEventListener('touchstart', enableSoundOnce);
+}
+
+// ———————— ЗАВАНТАЖЕННЯ ВІДЕО ————————
+async function fetchVideos() {
+  try {
+    const res = await fetch('/api/videos');
+    videos = await res.json();
+
+    if (videos.length === 0) {
+      showMessage("Відео скоро з'являться");
+    } else {
+      hideMessage();
+      currentIndex = 0;
+      setVideoSource(currentIndex);
+      preloadNextVideo(currentIndex + 1);
+    }
+  } catch (e) {
+    console.error("Помилка завантаження відео:", e);
+    showMessage("Помилка завантаження відео");
+  }
+}
+
+function showMessage(text) {
+  message.textContent = text;
+  message.style.display = 'block';
+  videoMain.style.display = 'none';
+}
+
+function hideMessage() {
+  message.style.display = 'none';
+  videoMain.style.display = 'block';
+}
+
+// Встановлює і відтворює відео за індексом
+function setVideoSource(index) {
+  if (index < 0 || index >= videos.length) return;
+
+  currentIndex = index;
+  videoMain.src = (videoPreload.src === videos[currentIndex])
+    ? videoPreload.src
+    : videos[currentIndex];
+  videoMain.volume = 1.0;
+  videoMain.load();
+
+  showMessage("Завантаження відео...");
+
+  videoMain.oncanplay = () => {
+    hideMessage();
+    videoMain.play().catch(() => {});
+  };
+  videoMain.onwaiting = () => showMessage("Завантаження відео...");
+  videoMain.onerror = () => showMessage("Помилка завантаження відео");
+
+  preloadNextVideo(currentIndex + 1);
+}
+
+// Підвантажує наступне відео без відтворення
+function preloadNextVideo(index) {
+  if (index < 0 || index >= videos.length) {
+    videoPreload.src = "";
+    return;
+  }
+  videoPreload.src = videos[index];
+  videoPreload.load();
+}
+
+// ———————— ЖЕСТИ І КЛАВІАТУРА ————————
+// Свайп
+let startY = null;
+window.addEventListener('touchstart', e => {
+  startY = e.touches[0].clientY;
+});
+window.addEventListener('touchend', e => {
+  if (startY === null) return;
+  const endY = e.changedTouches[0].clientY;
+  const diff = endY - startY;
+  if (diff < -50 && currentIndex + 1 < videos.length) {
+    setVideoSource(currentIndex + 1);
+  } else if (diff > 50 && currentIndex - 1 >= 0) {
+    setVideoSource(currentIndex - 1);
+  }
+  startY = null;
+});
+
+// Колесо миші
+window.addEventListener('wheel', e => {
+  if (wheelTimeout) return;
+  if (e.deltaY > 0 && currentIndex + 1 < videos.length) {
+    setVideoSource(currentIndex + 1);
+  } else if (e.deltaY < 0 && currentIndex - 1 >= 0) {
+    setVideoSource(currentIndex - 1);
+  }
+  wheelTimeout = setTimeout(() => wheelTimeout = null, 400);
+});
+
+// Клавіші ArrowUp / ArrowDown
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' && currentIndex + 1 < videos.length) {
+    setVideoSource(currentIndex + 1);
+  } else if (e.key === 'ArrowUp' && currentIndex - 1 >= 0) {
+    setVideoSource(currentIndex - 1);
+  }
+});
+
+// Запускаємо завантаження відео
+fetchVideos();
+</script>
+
+
+
+</body>
+</html>

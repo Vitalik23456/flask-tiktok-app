@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Додати відео</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+        input[type="text"] {
+            padding: 10px;
+            width: 80%;
+            border-radius: 10px;
+            border: none;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 30px;
+            border-radius: 10px;
+            border: none;
+            background-color: #ff0050;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Додати нове відео</h2>
+
+    <form method="post">
+        <input type="hidden" name="user_id" value="{{ user_id }}">
+        <input type="text" name="video_url" placeholder="Вставте посилання на відео TikTok" required>
+        <br>
+        <button type="submit">Зберегти відео</button>
+    </form>
+
+    <br>
+    <a href="{{ url_for('home', user_id=user_id) }}" style="color:#ff0050;">Повернутися на головну</a>
+
+</body>
+</html>
